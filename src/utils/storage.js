@@ -32,10 +32,54 @@ const INITIAL_BALANCE = 60; // Minutes
 let currentUser = null;
 
 /**
- * Set the current authenticated user for cloud sync
+ * Set the current authenticated user and trigger sync
  */
-export function setAuthUser(user) {
+export async function setAuthUser(user) {
+    const previousUser = currentUser;
     currentUser = user;
+
+    if (user && !previousUser) {
+        // Just logged in, sync local data if any
+        await syncLocalDataToCloud();
+    }
+}
+
+/**
+ * Migrate local data to Firestore
+ */
+async function syncLocalDataToCloud() {
+    if (!currentUser) return;
+
+    try {
+        console.log("Synchronizing local data to cloud...");
+
+        // 1. Sync Profiles
+        const localProfilesData = localStorage.getItem(STORAGE_KEYS.PROFILES);
+        const localProfiles = localProfilesData ? JSON.parse(localProfilesData) : [];
+
+        for (const profile of localProfiles) {
+            const docRef = doc(db, 'users', currentUser.uid, 'profiles', profile.id);
+            // Use setDoc with merge: true to avoid overwriting existing cloud data if IDs match
+            await setDoc(docRef, profile, { merge: true });
+        }
+
+        // 2. Sync Transactions
+        const localTxsData = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
+        const localTxs = localTxsData ? JSON.parse(localTxsData) : [];
+
+        for (const tx of localTxs) {
+            const docRef = doc(db, 'users', currentUser.uid, 'transactions', tx.id);
+            await setDoc(docRef, tx, { merge: true });
+        }
+
+        if (localProfiles.length > 0 || localTxs.length > 0) {
+            console.log(`Successfully migrated ${localProfiles.length} profiles and ${localTxs.length} transactions.`);
+            // Optionally clear local storage after sync to avoid clutter
+            // But keeping it as fallback is safer for now.
+        }
+    } catch (error) {
+        console.error("Error during data migration:", error);
+    }
 }
 
 /**
