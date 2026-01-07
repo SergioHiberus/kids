@@ -25,7 +25,7 @@ function App() {
   }
 
   return (
-    <Router>
+    <Router basename="/kids">{/* Match the base path from vite.config.js */}
       <div className="app">
         <header style={{
           background: 'var(--bg-secondary)',
