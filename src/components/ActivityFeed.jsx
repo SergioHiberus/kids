@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { subscribeToTransactions } from '../utils/storage';
+import { subscribeToTransactions, subscribeToFamilyChange } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../utils/dateUtils';
 import { TrendingUp, TrendingDown, RotateCcw, Coins } from 'lucide-react';
@@ -10,14 +10,22 @@ function ActivityFeed({ profileId }) {
     const { user } = useAuth();
 
     useEffect(() => {
-        setLoading(true);
-        const unsubscribe = subscribeToTransactions(profileId, (data) => {
-            setTransactions(data);
-            setLoading(false);
-        }, 5);
+        let unsubscribeTransactions = () => { };
 
-        return () => unsubscribe();
-    }, [profileId, user]);
+        const unsubscribeFamily = subscribeToFamilyChange(() => {
+            setLoading(true);
+            unsubscribeTransactions();
+            unsubscribeTransactions = subscribeToTransactions(profileId, (data) => {
+                setTransactions(data);
+                setLoading(false);
+            }, 5);
+        });
+
+        return () => {
+            unsubscribeFamily();
+            unsubscribeTransactions();
+        };
+    }, [profileId]);
 
     if (loading) {
         return <div style={{ textAlign: 'center', padding: 'var(--spacing-md)' }}>Cargando actividad...</div>;
