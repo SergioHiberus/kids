@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
-import { subscribeToProfile, deleteProfile } from '../utils/storage';
+import { subscribeToProfile, deleteProfile, subscribeToFamilyChange } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
 import TaskChecklist from './TaskChecklist';
 import ConsequenceButtons from './ConsequenceButtons';
@@ -17,19 +17,26 @@ function ProfileDetail() {
     const { user } = useAuth();
 
     useEffect(() => {
-        setLoading(true);
-        const unsubscribe = subscribeToProfile(id, (data) => {
-            if (!data && !loading) {
-                // Profile was deleted
-                navigate('/');
-                return;
-            }
-            setProfile(data);
-            setLoading(false);
+        let unsubscribeProfile = () => { };
+
+        const unsubscribeFamily = subscribeToFamilyChange(() => {
+            setLoading(true);
+            unsubscribeProfile();
+            unsubscribeProfile = subscribeToProfile(id, (data) => {
+                if (!data && !loading) {
+                    navigate('/');
+                    return;
+                }
+                setProfile(data);
+                setLoading(false);
+            });
         });
 
-        return () => unsubscribe();
-    }, [id, user]);
+        return () => {
+            unsubscribeFamily();
+            unsubscribeProfile();
+        };
+    }, [id]);
 
     const handleDelete = async () => {
         if (window.confirm(`¿Estás seguro de eliminar el perfil de ${profile.name}?`)) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { subscribeToProfiles } from '../utils/storage';
+import { subscribeToProfiles, subscribeToFamilyChange } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
 import ProfileCard from './ProfileCard';
 import { Users } from 'lucide-react';
@@ -11,14 +11,22 @@ function Dashboard() {
     const { user } = useAuth();
 
     useEffect(() => {
-        setLoading(true);
-        const unsubscribe = subscribeToProfiles((data) => {
-            setProfiles(data);
-            setLoading(false);
+        let unsubscribeProfiles = () => { };
+
+        const unsubscribeFamily = subscribeToFamilyChange((newFamilyId) => {
+            setLoading(true);
+            unsubscribeProfiles(); // Clean up previous subscription if any
+            unsubscribeProfiles = subscribeToProfiles((data) => {
+                setProfiles(data);
+                setLoading(false);
+            });
         });
 
-        return () => unsubscribe();
-    }, [user]);
+        return () => {
+            unsubscribeFamily();
+            unsubscribeProfiles();
+        };
+    }, []);
 
     if (loading) {
         return (

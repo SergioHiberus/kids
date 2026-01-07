@@ -11,7 +11,7 @@ import {
     Legend,
     Filler
 } from 'chart.js';
-import { getProfileTransactions } from '../utils/storage';
+import { getProfileTransactions, subscribeToFamilyChange } from '../utils/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { format, subDays, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -40,8 +40,11 @@ function HistoryChart({ profileId }) {
     const { user } = useAuth();
 
     useEffect(() => {
-        loadChartData();
-    }, [profileId, viewMode, user]);
+        const unsubscribe = subscribeToFamilyChange(() => {
+            loadChartData();
+        });
+        return () => unsubscribe();
+    }, [profileId, viewMode]);
 
     const loadChartData = async () => {
         const transactions = await getProfileTransactions(profileId);

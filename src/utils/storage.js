@@ -30,6 +30,30 @@ const CURRENT_VERSION = '1.0.0';
 const INITIAL_BALANCE = 60; // Minutes
 
 let currentUser = null;
+let currentFamilyId = null;
+let familyChangeListeners = [];
+
+/**
+ * Get the current family ID
+ */
+export function getActiveFamilyId() {
+    return currentFamilyId;
+}
+
+/**
+ * Subscribe to family ID changes
+ */
+export function subscribeToFamilyChange(callback) {
+    familyChangeListeners.push(callback);
+    callback(currentFamilyId);
+    return () => {
+        familyChangeListeners = familyChangeListeners.filter(l => l !== callback);
+    };
+}
+
+function notifyFamilyChange() {
+    familyChangeListeners.forEach(l => l(currentFamilyId));
+}
 
 /**
  * Set the current authenticated user and trigger sync
@@ -39,27 +63,93 @@ export async function setAuthUser(user) {
     currentUser = user;
 
     if (user && !previousUser) {
-        // Just logged in, sync local data if any
+        // 1. Ensure user has a familyId config
+        await ensureFamilyConfig();
+
+        // 2. Sync local data if any (now to the family collection)
         await syncLocalDataToCloud();
+    } else if (!user) {
+        currentFamilyId = null;
+        notifyFamilyChange();
     }
 }
 
 /**
- * Migrate local data to Firestore
+ * Ensures the user has a familyId in Firestore, creating one if necessary.
+ * Also handles migration from old user-centric path if needed.
  */
-async function syncLocalDataToCloud() {
+async function ensureFamilyConfig() {
     if (!currentUser) return;
 
+    const userConfigRef = doc(db, 'users', currentUser.uid);
+    const configSnap = await getDoc(userConfigRef);
+
+    if (configSnap.exists() && configSnap.data().familyId) {
+        currentFamilyId = configSnap.data().familyId;
+    } else {
+        // Use UID as initial familyId
+        currentFamilyId = currentUser.uid;
+        await setDoc(userConfigRef, { familyId: currentFamilyId }, { merge: true });
+
+        // Check for "old" data in users/{uid}/profiles and move it if found
+        await migrateStoreFromUserToFamily(currentUser.uid, currentFamilyId);
+    }
+    notifyFamilyChange();
+}
+
+/**
+ * Migrates data from the old users/{uid} structure to families/{familyId}
+ */
+async function migrateStoreFromUserToFamily(uid, familyId) {
+    const oldProfilesQ = collection(db, 'users', uid, 'profiles');
+    const profilesSnap = await getDocs(oldProfilesQ);
+
+    for (const profileDoc of profilesSnap.docs) {
+        const data = profileDoc.data();
+        await setDoc(doc(db, 'families', familyId, 'profiles', profileDoc.id), data);
+        await deleteDoc(profileDoc.ref);
+    }
+
+    const oldTxsQ = collection(db, 'users', uid, 'transactions');
+    const txsSnap = await getDocs(oldTxsQ);
+
+    for (const txDoc of txsSnap.docs) {
+        const data = txDoc.data();
+        await setDoc(doc(db, 'families', familyId, 'transactions', txDoc.id), data);
+        await deleteDoc(txDoc.ref);
+    }
+}
+
+/**
+ * Join a different family using a code
+ */
+export async function joinFamily(familyId) {
+    if (!currentUser) throw new Error('Debes estar autenticado');
+
+    const userConfigRef = doc(db, 'users', currentUser.uid);
+    await setDoc(userConfigRef, { familyId }, { merge: true });
+    currentFamilyId = familyId;
+    notifyFamilyChange();
+
+    // The UI will re-subscribe thanks to useEffects triggering on familyId change
+    return true;
+}
+
+/**
+ * Migrate local data to Firestore (now to family collection)
+ */
+async function syncLocalDataToCloud() {
+    if (!currentUser || !currentFamilyId) return;
+
     try {
-        console.log("Synchronizing local data to cloud...");
+        console.log(`Synchronizing local data to family: ${currentFamilyId}`);
 
         // 1. Sync Profiles
         const localProfilesData = localStorage.getItem(STORAGE_KEYS.PROFILES);
         const localProfiles = localProfilesData ? JSON.parse(localProfilesData) : [];
 
         for (const profile of localProfiles) {
-            const docRef = doc(db, 'users', currentUser.uid, 'profiles', profile.id);
-            // Use setDoc with merge: true to avoid overwriting existing cloud data if IDs match
+            const docRef = doc(db, 'families', currentFamilyId, 'profiles', profile.id);
             await setDoc(docRef, profile, { merge: true });
         }
 
@@ -68,12 +158,12 @@ async function syncLocalDataToCloud() {
         const localTxs = localTxsData ? JSON.parse(localTxsData) : [];
 
         for (const tx of localTxs) {
-            const docRef = doc(db, 'users', currentUser.uid, 'transactions', tx.id);
+            const docRef = doc(db, 'families', currentFamilyId, 'transactions', tx.id);
             await setDoc(docRef, tx, { merge: true });
         }
 
         if (localProfiles.length > 0 || localTxs.length > 0) {
-            console.log(`Successfully migrated ${localProfiles.length} profiles and ${localTxs.length} transactions.`);
+            console.log(`Successfully migrated ${localProfiles.length} profiles and ${localTxs.length} transactions to family.`);
             // Optionally clear local storage after sync to avoid clutter
             // But keeping it as fallback is safer for now.
         }
@@ -137,8 +227,8 @@ async function performWeeklyReset() {
  * Get all profiles
  */
 export async function getProfiles() {
-    if (currentUser) {
-        const q = collection(db, 'users', currentUser.uid, 'profiles');
+    if (currentUser && currentFamilyId) {
+        const q = collection(db, 'families', currentFamilyId, 'profiles');
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     }
@@ -150,20 +240,18 @@ export async function getProfiles() {
  * Subscribe to profiles for real-time updates
  */
 export function subscribeToProfiles(callback) {
-    if (currentUser) {
-        const q = collection(db, 'users', currentUser.uid, 'profiles');
+    if (currentUser && currentFamilyId) {
+        const q = collection(db, 'families', currentFamilyId, 'profiles');
         return onSnapshot(q, (snapshot) => {
             const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             callback(profiles);
         }, (error) => {
             console.error("Firestore SubscribeToProfiles Error:", error);
-            // Fallback to local if desired, or just log
             getProfiles().then(callback);
         });
     } else {
-        // For localStorage, we just call it once or use a simple interval for "pseudo-sync"
         getProfiles().then(callback);
-        return () => { }; // No-op unsubscribe
+        return () => { };
     }
 }
 
@@ -171,11 +259,9 @@ export function subscribeToProfiles(callback) {
  * Save profiles
  */
 export async function saveProfiles(profiles) {
-    if (currentUser) {
-        // In Firestore, we usually update individual docs, 
-        // but if we need a bulk save (like in the reset):
+    if (currentUser && currentFamilyId) {
         for (const profile of profiles) {
-            const docRef = doc(db, 'users', currentUser.uid, 'profiles', profile.id);
+            const docRef = doc(db, 'families', currentFamilyId, 'profiles', profile.id);
             await setDoc(docRef, profile, { merge: true });
         }
     }
@@ -186,8 +272,8 @@ export async function saveProfiles(profiles) {
  * Get profile by ID
  */
 export async function getProfile(id) {
-    if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid, 'profiles', id);
+    if (currentUser && currentFamilyId) {
+        const docRef = doc(db, 'families', currentFamilyId, 'profiles', id);
         const snapshot = await getDoc(docRef);
         return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
     }
@@ -199,8 +285,8 @@ export async function getProfile(id) {
  * Subscribe to a specific profile
  */
 export function subscribeToProfile(id, callback) {
-    if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid, 'profiles', id);
+    if (currentUser && currentFamilyId) {
+        const docRef = doc(db, 'families', currentFamilyId, 'profiles', id);
         return onSnapshot(docRef, (snapshot) => {
             if (snapshot.exists()) {
                 callback({ id: snapshot.id, ...snapshot.data() });
@@ -244,8 +330,8 @@ export async function createProfile(profileData) {
         createdAt: new Date().toISOString()
     };
 
-    if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid, 'profiles', newProfile.id);
+    if (currentUser && currentFamilyId) {
+        const docRef = doc(db, 'families', currentFamilyId, 'profiles', newProfile.id);
         await setDoc(docRef, newProfile);
     } else {
         const profiles = await getProfiles();
@@ -253,14 +339,13 @@ export async function createProfile(profileData) {
         await saveProfiles(profiles);
     }
 
-    // Add initial balance transaction (record only, don't update balance)
     await addTransaction({
         profileId: newProfile.id,
         type: 'reset',
         amount: INITIAL_BALANCE,
         description: 'Perfil creado - Regalo inicial',
         timestamp: new Date().toISOString()
-    }, true); // Silent skip update because we already set initial balance
+    }, true);
 
     return newProfile;
 }
@@ -269,10 +354,10 @@ export async function createProfile(profileData) {
  * Update profile
  */
 export async function updateProfile(id, updates) {
-    if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid, 'profiles', id);
+    if (currentUser && currentFamilyId) {
+        const docRef = doc(db, 'families', currentFamilyId, 'profiles', id);
         await updateDoc(docRef, updates);
-        return { id, ...updates }; // Partial return is fine for local state
+        return { id, ...updates };
     }
     const profiles = await getProfiles();
     const index = profiles.findIndex(p => p.id === id);
@@ -282,7 +367,6 @@ export async function updateProfile(id, updates) {
         await saveProfiles(profiles);
         return profiles[index];
     }
-
     return null;
 }
 
@@ -290,12 +374,11 @@ export async function updateProfile(id, updates) {
  * Delete profile
  */
 export async function deleteProfile(id) {
-    if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid, 'profiles', id);
+    if (currentUser && currentFamilyId) {
+        const docRef = doc(db, 'families', currentFamilyId, 'profiles', id);
         await deleteDoc(docRef);
 
-        // Delete related transactions in Firestore
-        const txsQ = query(collection(db, 'users', currentUser.uid, 'transactions'), where('profileId', '==', id));
+        const txsQ = query(collection(db, 'families', currentFamilyId, 'transactions'), where('profileId', '==', id));
         const txsSnapshot = await getDocs(txsQ);
         for (const txDoc of txsSnapshot.docs) {
             await deleteDoc(txDoc.ref);
@@ -305,7 +388,6 @@ export async function deleteProfile(id) {
         const filtered = profiles.filter(p => p.id !== id);
         await saveProfiles(filtered);
 
-        // Also delete related transactions
         const transactions = await getTransactions();
         const filteredTransactions = transactions.filter(t => t.profileId !== id);
         await saveTransactions(filteredTransactions);
@@ -316,8 +398,8 @@ export async function deleteProfile(id) {
  * Get all transactions
  */
 export async function getTransactions() {
-    if (currentUser) {
-        const q = collection(db, 'users', currentUser.uid, 'transactions');
+    if (currentUser && currentFamilyId) {
+        const q = collection(db, 'families', currentFamilyId, 'transactions');
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     }
@@ -329,9 +411,9 @@ export async function getTransactions() {
  * Save transactions
  */
 async function saveTransactions(transactions) {
-    if (currentUser) {
+    if (currentUser && currentFamilyId) {
         for (const tx of transactions) {
-            const docRef = doc(db, 'users', currentUser.uid, 'transactions', tx.id);
+            const docRef = doc(db, 'families', currentFamilyId, 'transactions', tx.id);
             await setDoc(docRef, tx, { merge: true });
         }
     }
@@ -342,9 +424,9 @@ async function saveTransactions(transactions) {
  * Get transactions for a specific profile
  */
 export async function getProfileTransactions(profileId, limit = null) {
-    if (currentUser) {
+    if (currentUser && currentFamilyId) {
         let q = query(
-            collection(db, 'users', currentUser.uid, 'transactions'),
+            collection(db, 'families', currentFamilyId, 'transactions'),
             where('profileId', '==', profileId),
             orderBy('timestamp', 'desc')
         );
@@ -366,9 +448,9 @@ export async function getProfileTransactions(profileId, limit = null) {
  * Subscribe to profile transactions
  */
 export function subscribeToTransactions(profileId, callback, limit = null) {
-    if (currentUser) {
+    if (currentUser && currentFamilyId) {
         let q = query(
-            collection(db, 'users', currentUser.uid, 'transactions'),
+            collection(db, 'families', currentFamilyId, 'transactions'),
             where('profileId', '==', profileId),
             orderBy('timestamp', 'desc')
         );
@@ -398,8 +480,8 @@ export async function addTransaction(transaction, skipProfileUpdate = false) {
         timestamp: transaction.timestamp || new Date().toISOString()
     };
 
-    if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid, 'transactions', newTransaction.id);
+    if (currentUser && currentFamilyId) {
+        const docRef = doc(db, 'families', currentFamilyId, 'transactions', newTransaction.id);
         await setDoc(docRef, newTransaction);
     } else {
         const transactions = await getTransactions();
@@ -407,7 +489,6 @@ export async function addTransaction(transaction, skipProfileUpdate = false) {
         await saveTransactions(transactions);
     }
 
-    // Update profile balance
     if (!skipProfileUpdate) {
         const profile = await getProfile(transaction.profileId);
         if (profile) {
