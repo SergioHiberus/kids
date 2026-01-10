@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Lightbulb } from 'lucide-react';
+import { CheckSquare, Square, Lightbulb, Loader2 } from 'lucide-react';
 import { completeTask, undoTaskCompletion, addInitiative, subscribeToTransactions } from '../utils/storage';
 import { isSameDay } from '../utils/dateUtils';
 
@@ -9,7 +9,9 @@ function TaskChecklist({ profile, activeDate }) {
     const [processingTasks, setProcessingTasks] = useState(new Set());
 
     useEffect(() => {
+        console.log(`[TaskChecklist] Subscribing to transactions for profile: ${profile.id}`);
         const unsubscribe = subscribeToTransactions(profile.id, (data) => {
+            console.log(`[TaskChecklist] Received ${data.length} transactions`);
             setTransactions(data);
         });
         return () => unsubscribe();
@@ -82,24 +84,26 @@ function TaskChecklist({ profile, activeDate }) {
                                 marginBottom: 'var(--spacing-sm)',
                                 cursor: isProcessing ? 'wait' : 'pointer',
                                 transition: 'all var(--transition-fast)',
-                                border: '2px solid transparent',
-                                opacity: isProcessing ? 0.6 : 1
+                                border: '2px solid',
+                                borderColor: isCompleted ? 'var(--color-success)' : 'transparent',
+                                opacity: isProcessing ? 0.6 : 1,
+                                transform: isCompleted ? 'scale(1.01)' : 'scale(1)'
                             }}
                             onMouseEnter={(e) => {
-                                if (!isCompleted) {
-                                    e.currentTarget.style.borderColor = 'var(--color-success)';
-                                    e.currentTarget.style.transform = 'translateX(4px)';
-                                }
+                                e.currentTarget.style.borderColor = 'var(--color-success)';
+                                e.currentTarget.style.transform = 'translateX(4px)';
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.borderColor = 'transparent';
-                                e.currentTarget.style.transform = 'translateX(0)';
+                                e.currentTarget.style.borderColor = isCompleted ? 'var(--color-success)' : 'transparent';
+                                e.currentTarget.style.transform = isCompleted ? 'scale(1.01)' : 'scale(1)';
                             }}
                         >
-                            {isCompleted ? (
-                                <CheckCircle size={24} color="var(--color-success)" />
+                            {isProcessing ? (
+                                <Loader2 size={24} className="animate-spin" color="var(--color-primary)" />
+                            ) : isCompleted ? (
+                                <CheckSquare size={24} color="var(--color-success)" fill="white" />
                             ) : (
-                                <Circle size={24} color="var(--text-muted)" />
+                                <Square size={24} color="var(--text-muted)" />
                             )}
                             <div style={{ flex: 1 }}>
                                 <div style={{
