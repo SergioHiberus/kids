@@ -1,3 +1,5 @@
+import React, { useState, useEffect } from 'react';
+import { CheckCircle, Circle, Lightbulb } from 'lucide-react';
 import { completeTask, addInitiative, subscribeToTransactions } from '../utils/storage';
 import { isSameDay } from '../utils/dateUtils';
 
