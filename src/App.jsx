@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { Home, Plus, Settings } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ProfileDetail from './components/ProfileDetail';
@@ -63,7 +63,7 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router basename="/kids">
+      <Router>
         <AppContent />
       </Router>
     </AuthProvider>
