@@ -32,6 +32,7 @@ const INITIAL_BALANCE = 60; // Minutes
 let currentUser = null;
 let currentFamilyId = null;
 let familyChangeListeners = [];
+let dataChangeListeners = [];
 
 /**
  * Get the current family ID
@@ -53,6 +54,20 @@ export function subscribeToFamilyChange(callback) {
 
 function notifyFamilyChange() {
     familyChangeListeners.forEach(l => l(currentFamilyId));
+}
+
+/**
+ * Subscribe to generic data changes (for local reactivity)
+ */
+export function subscribeToDataChange(callback) {
+    dataChangeListeners.push(callback);
+    return () => {
+        dataChangeListeners = dataChangeListeners.filter(l => l !== callback);
+    };
+}
+
+function notifyDataChange() {
+    dataChangeListeners.forEach(l => l());
 }
 
 /**
@@ -270,8 +285,11 @@ export function subscribeToProfiles(callback) {
             getProfiles().then(callback);
         });
     } else {
-        getProfiles().then(callback);
-        return () => { };
+        const handler = () => {
+            getProfiles().then(callback);
+        };
+        handler(); // Initial load
+        return subscribeToDataChange(handler);
     }
 }
 
@@ -286,6 +304,7 @@ export async function saveProfiles(profiles) {
         }
     }
     localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(profiles));
+    notifyDataChange();
 }
 
 /**
@@ -318,8 +337,11 @@ export function subscribeToProfile(id, callback) {
             getProfile(id).then(callback);
         });
     } else {
-        getProfile(id).then(callback);
-        return () => { };
+        const handler = () => {
+            getProfile(id).then(callback);
+        };
+        handler();
+        return subscribeToDataChange(handler);
     }
 }
 
@@ -438,6 +460,7 @@ async function saveTransactions(transactions) {
         }
     }
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+    notifyDataChange();
 }
 
 /**
@@ -485,8 +508,11 @@ export function subscribeToTransactions(profileId, callback, limit = null) {
             getProfileTransactions(profileId, limit).then(callback);
         });
     } else {
-        getProfileTransactions(profileId, limit).then(callback);
-        return () => { };
+        const handler = () => {
+            getProfileTransactions(profileId, limit).then(callback);
+        };
+        handler();
+        return subscribeToDataChange(handler);
     }
 }
 
