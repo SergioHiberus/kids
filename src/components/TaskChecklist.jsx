@@ -6,6 +6,7 @@ import { isSameDay } from '../utils/dateUtils';
 function TaskChecklist({ profile, activeDate }) {
     const [initiativeText, setInitiativeText] = useState('');
     const [transactions, setTransactions] = useState([]);
+    const [processingTasks, setProcessingTasks] = useState(new Set());
 
     useEffect(() => {
         const unsubscribe = subscribeToTransactions(profile.id, (data) => {
@@ -15,10 +16,21 @@ function TaskChecklist({ profile, activeDate }) {
     }, [profile.id]);
 
     const handleTaskToggle = async (taskId, isCurrentlyCompleted) => {
-        if (isCurrentlyCompleted) {
-            await undoTaskCompletion(profile.id, taskId, activeDate);
-        } else {
-            await completeTask(profile.id, taskId, activeDate);
+        if (processingTasks.has(taskId)) return;
+
+        setProcessingTasks(prev => new Set(prev).add(taskId));
+        try {
+            if (isCurrentlyCompleted) {
+                await undoTaskCompletion(profile.id, taskId, activeDate);
+            } else {
+                await completeTask(profile.id, taskId, activeDate);
+            }
+        } finally {
+            setProcessingTasks(prev => {
+                const next = new Set(prev);
+                next.delete(taskId);
+                return next;
+            });
         }
     };
 
@@ -54,6 +66,8 @@ function TaskChecklist({ profile, activeDate }) {
             <div style={{ marginBottom: 'var(--spacing-lg)' }}>
                 {profile.tasks.map(task => {
                     const isCompleted = isTaskCompletedOnDate(task.id);
+                    const isProcessing = processingTasks.has(task.id);
+
                     return (
                         <div
                             key={task.id}
@@ -66,9 +80,10 @@ function TaskChecklist({ profile, activeDate }) {
                                 background: isCompleted ? 'var(--color-success-light)' : 'var(--bg-secondary)',
                                 borderRadius: 'var(--border-radius-sm)',
                                 marginBottom: 'var(--spacing-sm)',
-                                cursor: 'pointer',
+                                cursor: isProcessing ? 'wait' : 'pointer',
                                 transition: 'all var(--transition-fast)',
-                                border: '2px solid transparent'
+                                border: '2px solid transparent',
+                                opacity: isProcessing ? 0.6 : 1
                             }}
                             onMouseEnter={(e) => {
                                 if (!isCompleted) {
