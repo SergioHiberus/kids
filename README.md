@@ -4,19 +4,22 @@ Aplicación web progresiva (PWA) para gestionar un sistema de aprendizaje por re
 
 ## 🌐 Demo en Vivo
 
-**🔗 https://sergiohiberus.github.io/kids/**
+**🔗 https://semapo82.github.io/kids/**
 
 ## ✨ Características
 
 - ✅ **Gestión de Perfiles**: Crea perfiles ilimitados para cada hijo/a
-- ✅ **Sistema de Tareas**: Checklist diario con recompensas (+5 Min por tarea)
+- ✅ **Planificación de Sesiones**: Distribuye la meta semanal en bloques diarios (ej: sesiones de fin de semana)
+- ✅ **Sistema de Tareas**: Checklist diario con recompensas configurables
+- ✅ **Cálculo Automático**: Distribución inteligente de puntos basada en la meta semanal
 - ✅ **Iniciativas**: Bonificación por acciones autónomas (+5 Min)
-- ✅ **Consecuencias**: Penalizaciones rápidas por mal comportamiento (-5 a -30 Min)
+- ✅ **Consecuencias Reversibles**: Checklist de penalizaciones con posibilidad de anulación
+- ✅ **Afectación de Sesiones**: Las penalizaciones pueden dirigirse a un día concreto del plan
 - ✅ **La Banca**: Canjea minutos acumulados (15 Min o 1 Hora)
 - ✅ **Bloqueo de Privilegios**: Cuando el saldo es ≤ 0
 - ✅ **Gráficos de Progreso**: Visualización diaria, semanal y mensual
-- ✅ **Feed de Actividad**: Últimas 5 transacciones
-- ✅ **Reset Semanal**: Automático cada viernes a las 00:00
+- ✅ **Feed de Actividad**: Historial detallado de todas las transacciones
+- ✅ **Reset Semanal**: Automático cada viernes a las 00:00 (Ciclo Viernes-Jueves)
 - ✅ **Diseño Moderno**: Tema oscuro y responsive para móviles
 
 ## 🚀 Inicio Rápido
