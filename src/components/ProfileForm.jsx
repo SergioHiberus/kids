@@ -176,16 +176,6 @@ function ProfileForm() {
         });
 
         setFormData({ ...formData, customTasks: updatedTasks });
-
-        alert(`Tiempos calculados!
-        
-        Meta semanal: ${weeklyGoalMinutes} min
-        - 60 min gratis
-        - ${manualWeeklyContribution} min (de tus ${manualTasks.length} tareas manuales)
-        = ${remainingToDistribute} min por repartir entre las ${totalAutomaticCount} tareas automáticas.
-        
-        Resultado: ${pointsPerAutoTask} min/tarea automática.
-        (Recuerda que la Respiración es un extra aparte)`);
     };
 
     if (loading) {
