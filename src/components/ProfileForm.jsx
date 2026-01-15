@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, AlertTriangle, Home, Shield, Clock, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, AlertTriangle, Home, Shield, Clock, Plus, Trash2, Calculator } from 'lucide-react';
 import { createProfile, getProfile, updateProfile } from '../utils/storage';
 
 function ProfileForm() {
@@ -26,7 +26,8 @@ function ProfileForm() {
                         customTasks: profile.tasks?.filter(t => t.id !== 'breathing').map(t => ({
                             id: t.id,
                             name: t.name,
-                            points: t.points
+                            points: t.points,
+                            isManual: t.isManual || false
                         })) || [],
                         consequences: profile.consequences || getDefaultConsequences()
                     });
@@ -68,7 +69,8 @@ function ProfileForm() {
                 ...formData.customTasks.map(t => ({
                     id: t.id || `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     name: t.name,
-                    points: t.points
+                    points: t.points,
+                    isManual: t.isManual || false
                 }))
             ];
 
@@ -88,7 +90,7 @@ function ProfileForm() {
     const addTask = () => {
         setFormData({
             ...formData,
-            customTasks: [...formData.customTasks, { name: '', points: 5 }]
+            customTasks: [...formData.customTasks, { name: '', points: 5, isManual: false }]
         });
     };
 
@@ -125,6 +127,40 @@ function ProfileForm() {
     const removeConsequence = (index) => {
         const updated = formData.consequences.filter((_, i) => i !== index);
         setFormData({ ...formData, consequences: updated });
+    };
+
+    const calculateAutomaticTimes = () => {
+        if (formData.weeklyGoalHours <= 0) {
+            alert('Por favor establece una meta semanal mayor a 0 horas');
+            return;
+        }
+
+        // Convert weekly goal from hours to minutes
+        const weeklyGoalMinutes = formData.weeklyGoalHours * 60;
+
+        // Count tasks that are not manual (including breathing task)
+        const automaticTasks = formData.customTasks.filter(t => !t.isManual);
+        const totalAutomaticTasks = automaticTasks.length + 1; // +1 for breathing task
+
+        if (totalAutomaticTasks === 0) {
+            alert('Todas las tareas están marcadas como manuales. No hay nada que calcular.');
+            return;
+        }
+
+        // Calculate points per task: weeklyGoal / (tasks * 7 days)
+        const pointsPerTask = Math.round(weeklyGoalMinutes / (totalAutomaticTasks * 7));
+
+        // Update automatic tasks
+        const updatedTasks = formData.customTasks.map(task => {
+            if (task.isManual) {
+                return task; // Keep manual tasks unchanged
+            }
+            return { ...task, points: pointsPerTask };
+        });
+
+        setFormData({ ...formData, customTasks: updatedTasks });
+
+        alert(`Tiempos calculados automáticamente: ${pointsPerTask} minutos por tarea\n(Meta semanal: ${formData.weeklyGoalHours}h = ${weeklyGoalMinutes} min / ${totalAutomaticTasks} tareas / 7 días)`);
     };
 
     if (loading) {
@@ -177,17 +213,23 @@ function ProfileForm() {
                     <div style={{ marginBottom: 'var(--spacing-lg)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                             <label className="label" style={{ marginBottom: 0 }}>Tareas personalizadas</label>
-                            <button type="button" onClick={addTask} className="btn btn-sm btn-primary">
-                                + Añadir Tarea
-                            </button>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                <button type="button" onClick={calculateAutomaticTimes} className="btn btn-sm btn-secondary">
+                                    <Calculator size={16} /> Calcular Automático
+                                </button>
+                                <button type="button" onClick={addTask} className="btn btn-sm btn-primary">
+                                    + Añadir Tarea
+                                </button>
+                            </div>
                         </div>
 
                         {formData.customTasks.map((task, index) => (
                             <div key={index} style={{
                                 display: 'grid',
-                                gridTemplateColumns: '1fr auto auto',
+                                gridTemplateColumns: '1fr auto auto auto',
                                 gap: 'var(--spacing-sm)',
-                                marginBottom: 'var(--spacing-sm)'
+                                marginBottom: 'var(--spacing-sm)',
+                                alignItems: 'center'
                             }}>
                                 <input
                                     type="text"
@@ -205,6 +247,22 @@ function ProfileForm() {
                                     min="1"
                                     style={{ width: '100px' }}
                                 />
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                    fontSize: 'var(--font-size-sm)'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={task.isManual || false}
+                                        onChange={(e) => updateTask(index, 'isManual', e.target.checked)}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    Manual
+                                </label>
                                 <button
                                     type="button"
                                     onClick={() => removeTask(index)}
@@ -216,7 +274,7 @@ function ProfileForm() {
                         ))}
 
                         <small style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', display: 'block', marginTop: 'var(--spacing-sm)' }}>
-                            Nota: "Respiración consciente" (+5 Min) se añade automáticamente
+                            Nota: "Respiración consciente" (+5 Min) se añade automáticamente. Marca "Manual" para evitar que el cálculo automático modifique una tarea.
                         </small>
                     </div>
 
