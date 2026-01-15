@@ -109,9 +109,9 @@ function WeeklySessions({ profile }) {
                 })}
             </div>
 
-            <p style={{ marginTop: 'var(--spacing-md)', fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                * Las penalizaciones aplicadas a "Gral" no se reflejan en este desglose diario, pero sí afectan al saldo total del banco.
-            </p>
+            <div style={{ marginTop: 'var(--spacing-md)', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                * El tiempo disponible se calcula restando las penalizaciones asignadas específicamente a cada sesión.
+            </div>
         </div>
     );
 }

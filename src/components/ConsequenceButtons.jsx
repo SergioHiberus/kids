@@ -24,24 +24,24 @@ function ConsequenceButtons({ profile, activeDate }) {
         return () => unsubscribe();
     }, [profile.id]);
 
-    const getAppliedSession = (type) => {
+    const getConsequenceState = (type) => {
         const entriesOnDate = transactions.filter(tx =>
             (tx.type === 'consequence' || tx.type === 'consequence_reversal') &&
             tx.consequenceType === type &&
             isSameDay(new Date(tx.timestamp), activeDate)
         );
 
-        // Calculate net balance (consequence adds -X, reversal adds +X)
-        const netTimeImpact = entriesOnDate.reduce((sum, tx) => {
-            return sum + Number(tx.amount);
-        }, 0);
+        // Calculate net time impact. If it's negative, the consequence is active.
+        const netImpact = entriesOnDate.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 
-        // If net impact is negative, it means consequence is active
-        if (netTimeImpact >= 0) return null;
+        if (netImpact >= 0) return { isApplied: false, session: null };
 
-        // Find the LATEST consequence record (not reversal) to see its targetSession
-        const lastConsequence = [...entriesOnDate].reverse().find(tx => tx.type === 'consequence');
-        return lastConsequence?.targetSession || null;
+        // If active, find the last actual penalty to know WHICH session it's affecting
+        const lastPenalty = [...entriesOnDate].reverse().find(tx => tx.type === 'consequence');
+        return {
+            isApplied: true,
+            session: lastPenalty?.targetSession || null
+        };
     };
 
     const plannedDays = profile.weeklyPlan ? Object.entries(profile.weeklyPlan)
@@ -51,17 +51,13 @@ function ConsequenceButtons({ profile, activeDate }) {
     const handleToggle = async (consequence, targetSession = null) => {
         if (processingTypes.has(consequence.type)) return;
 
-        const currentSession = getAppliedSession(consequence.type);
-        const isApplied = Boolean(currentSession);
-
-        // Logic check: if we click the CHECKBOX (targetSession is null), we toggle status
-        // If we click a PILL (targetSession is set), we switch or apply to that session
+        const { isApplied, session: currentSession } = getConsequenceState(consequence.type);
 
         setProcessingTypes(prev => new Set(prev).add(consequence.type));
 
         try {
             if (isApplied) {
-                // If clicking the CHECKBOX or the SAME session pill -> UNDO
+                // Si pulsas el check o la sesión que ya está activa -> QUITAR
                 if (targetSession === null || currentSession === targetSession) {
                     await undoConsequence(
                         profile.id,
@@ -72,7 +68,7 @@ function ConsequenceButtons({ profile, activeDate }) {
                         currentSession
                     );
                 } else {
-                    // Clicking a DIFFERENT session pill -> Switch session
+                    // Si pulsas una sesión diferente -> MOVER (Suma en la vieja, resta en la nueva)
                     await undoConsequence(
                         profile.id,
                         consequence.type,
@@ -91,7 +87,7 @@ function ConsequenceButtons({ profile, activeDate }) {
                     );
                 }
             } else {
-                // Not applied -> Apply to clicked session OR first planned session
+                // Si no está aplicada -> PONER (en la sesión elegida o la primera por defecto)
                 const finalTarget = targetSession || (plannedDays.length > 0 ? plannedDays[0] : null);
                 await applyConsequence(
                     profile.id,
@@ -104,7 +100,6 @@ function ConsequenceButtons({ profile, activeDate }) {
             }
         } catch (error) {
             console.error("Error toggling consequence:", error);
-            alert("Error al procesar la consecuencia");
         } finally {
             setProcessingTypes(prev => {
                 const next = new Set(prev);
@@ -123,8 +118,7 @@ function ConsequenceButtons({ profile, activeDate }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
             {consequences.map(consequence => {
                 const Icon = ICON_MAP[consequence.icon] || AlertTriangle;
-                const currentSession = getAppliedSession(consequence.type);
-                const isApplied = Boolean(currentSession);
+                const { isApplied, session: currentSession } = getConsequenceState(consequence.type);
                 const isProcessing = processingTypes.has(consequence.type);
 
                 return (
@@ -176,8 +170,8 @@ function ConsequenceButtons({ profile, activeDate }) {
                                 </div>
                                 <div style={{ fontSize: '12px', color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)', opacity: 0.8 }}>
                                     {isApplied
-                                        ? `Activa en: ${DAY_LABELS[currentSession] || 'Saldo General'}`
-                                        : 'Haz clic para aplicar'}
+                                        ? `Activa en: ${DAY_LABELS[currentSession] || 'Sesión planificada'}`
+                                        : 'Haz clic para aplicar penalización'}
                                 </div>
                             </div>
 
@@ -203,7 +197,7 @@ function ConsequenceButtons({ profile, activeDate }) {
                                 alignItems: 'center'
                             }}>
                                 <span style={{ fontSize: '11px', fontWeight: 600, color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)' }}>
-                                    {isApplied ? 'Cambiar sesión:' : 'O elegir sesión:'}
+                                    {isApplied ? 'Cambiar sesión:' : 'Elegir sesión específica:'}
                                 </span>
                                 {plannedDays.map(day => {
                                     const isActive = currentSession === day;
