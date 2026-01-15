@@ -31,14 +31,17 @@ function ConsequenceButtons({ profile, activeDate }) {
             isSameDay(new Date(tx.timestamp), activeDate)
         );
 
-        const netBalance = entriesOnDate.reduce((sum, tx) => {
-            return sum + (tx.type === 'consequence' ? 1 : -1);
+        // Calculate net balance (consequence adds -X, reversal adds +X)
+        const netTimeImpact = entriesOnDate.reduce((sum, tx) => {
+            return sum + Number(tx.amount);
         }, 0);
 
-        if (netBalance <= 0) return null;
+        // If net impact is negative, it means consequence is active
+        if (netTimeImpact >= 0) return null;
 
-        const lastRecord = entriesOnDate.find(tx => tx.type === 'consequence');
-        return lastRecord?.targetSession || null;
+        // Find the LATEST consequence record (not reversal) to see its targetSession
+        const lastConsequence = [...entriesOnDate].reverse().find(tx => tx.type === 'consequence');
+        return lastConsequence?.targetSession || null;
     };
 
     const plannedDays = profile.weeklyPlan ? Object.entries(profile.weeklyPlan)
@@ -51,16 +54,15 @@ function ConsequenceButtons({ profile, activeDate }) {
         const currentSession = getAppliedSession(consequence.type);
         const isApplied = Boolean(currentSession);
 
-        // Si no hay sesión destino y hay plan, usamos la primera disponible por defecto.
-        // Si no hay plan, no hay targetSession (null).
-        const finalTarget = targetSession || (plannedDays.length > 0 ? plannedDays[0] : null);
+        // Logic check: if we click the CHECKBOX (targetSession is null), we toggle status
+        // If we click a PILL (targetSession is set), we switch or apply to that session
 
         setProcessingTypes(prev => new Set(prev).add(consequence.type));
 
         try {
             if (isApplied) {
-                // Si hacemos clic sin especificar sesión (en el check) o en la sesión activa -> Desmarcamos
-                if (!targetSession || currentSession === targetSession) {
+                // If clicking the CHECKBOX or the SAME session pill -> UNDO
+                if (targetSession === null || currentSession === targetSession) {
                     await undoConsequence(
                         profile.id,
                         consequence.type,
@@ -70,7 +72,7 @@ function ConsequenceButtons({ profile, activeDate }) {
                         currentSession
                     );
                 } else {
-                    // Cambio de sesión (Undo antigua + Apply nueva)
+                    // Clicking a DIFFERENT session pill -> Switch session
                     await undoConsequence(
                         profile.id,
                         consequence.type,
@@ -85,11 +87,12 @@ function ConsequenceButtons({ profile, activeDate }) {
                         consequence.amount,
                         consequence.label,
                         activeDate,
-                        finalTarget
+                        targetSession
                     );
                 }
             } else {
-                // Aplicar a la sesión final
+                // Not applied -> Apply to clicked session OR first planned session
+                const finalTarget = targetSession || (plannedDays.length > 0 ? plannedDays[0] : null);
                 await applyConsequence(
                     profile.id,
                     consequence.type,
@@ -135,13 +138,11 @@ function ConsequenceButtons({ profile, activeDate }) {
                             borderColor: isApplied ? 'var(--color-danger)' : 'transparent',
                             opacity: isProcessing ? 0.7 : 1,
                             transition: 'all var(--transition-base)',
-                            position: 'relative',
-                            overflow: 'hidden'
                         }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
                             <div
-                                onClick={() => handleToggle(consequence, isApplied ? currentSession : null)}
+                                onClick={() => handleToggle(consequence, null)}
                                 style={{
                                     cursor: isProcessing ? 'wait' : 'pointer',
                                     display: 'flex',
@@ -160,7 +161,7 @@ function ConsequenceButtons({ profile, activeDate }) {
 
                             <div
                                 style={{ flex: 1, cursor: isProcessing ? 'wait' : 'pointer' }}
-                                onClick={() => handleToggle(consequence, isApplied ? currentSession : null)}
+                                onClick={() => handleToggle(consequence, null)}
                             >
                                 <div style={{
                                     fontWeight: 700,
@@ -175,8 +176,8 @@ function ConsequenceButtons({ profile, activeDate }) {
                                 </div>
                                 <div style={{ fontSize: '12px', color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)', opacity: 0.8 }}>
                                     {isApplied
-                                        ? `Penalización activa en: ${DAY_LABELS[currentSession] || 'Saldo General'}`
-                                        : 'Haz clic para aplicar penalización'}
+                                        ? `Activa en: ${DAY_LABELS[currentSession] || 'Saldo General'}`
+                                        : 'Haz clic para aplicar'}
                                 </div>
                             </div>
 
@@ -202,7 +203,7 @@ function ConsequenceButtons({ profile, activeDate }) {
                                 alignItems: 'center'
                             }}>
                                 <span style={{ fontSize: '11px', fontWeight: 600, color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)' }}>
-                                    {isApplied ? 'Cambiar sesión:' : 'Elegir sesión específica:'}
+                                    {isApplied ? 'Cambiar sesión:' : 'O elegir sesión:'}
                                 </span>
                                 {plannedDays.map(day => {
                                     const isActive = currentSession === day;
