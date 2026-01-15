@@ -2,13 +2,13 @@ import React from 'react';
 import { AlertTriangle, Home, Shield, Clock } from 'lucide-react';
 import { applyConsequence } from '../utils/storage';
 
-const CONSEQUENCES = [
+const DEFAULT_CONSEQUENCES = [
     {
         type: 'disrespect',
         label: 'Falta de respeto',
         description: 'Gritos/Groserías',
         amount: 15,
-        icon: AlertTriangle,
+        icon: 'AlertTriangle',
         color: 'var(--color-danger)'
     },
     {
@@ -16,7 +16,7 @@ const CONSEQUENCES = [
         label: 'Desorden',
         description: 'Zonas comunes',
         amount: 5,
-        icon: Home,
+        icon: 'Home',
         color: 'var(--color-warning)'
     },
     {
@@ -24,7 +24,7 @@ const CONSEQUENCES = [
         label: 'Confianza',
         description: 'Mentiras',
         amount: 30,
-        icon: Shield,
+        icon: 'Shield',
         color: '#dc2626'
     },
     {
@@ -32,22 +32,30 @@ const CONSEQUENCES = [
         label: 'Reglas Básicas',
         description: 'Saltarse horarios',
         amount: 15,
-        icon: Clock,
+        icon: 'Clock',
         color: 'var(--color-danger)'
     }
 ];
 
-function ConsequenceButtons({ profileId, activeDate, onUpdate }) {
+const ICON_MAP = {
+    AlertTriangle,
+    Home,
+    Shield,
+    Clock
+};
+
+function ConsequenceButtons({ profile, activeDate, onUpdate }) {
+    const consequences = profile.consequences || DEFAULT_CONSEQUENCES;
     const handleConsequence = async (consequence) => {
         if (window.confirm(`¿Aplicar consecuencia: ${consequence.label} (-${consequence.amount} Min)?`)) {
-            await applyConsequence(profileId, consequence.type, consequence.amount, consequence.description, activeDate);
+            await applyConsequence(profile.id, consequence.type, consequence.amount, consequence.description, activeDate);
         }
     };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
-            {CONSEQUENCES.map(consequence => {
-                const Icon = consequence.icon;
+            {consequences.map(consequence => {
+                const Icon = ICON_MAP[consequence.icon] || AlertTriangle;
                 return (
                     <button
                         key={consequence.type}

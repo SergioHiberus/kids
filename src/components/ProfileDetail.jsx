@@ -168,7 +168,7 @@ function ProfileDetail() {
                     <h3 style={{ marginBottom: 'var(--spacing-lg)', fontSize: 'var(--font-size-xl)' }}>
                         ⚠️ Consecuencias
                     </h3>
-                    <ConsequenceButtons profileId={id} activeDate={activeDate} />
+                    <ConsequenceButtons profile={profile} activeDate={activeDate} />
                 </div>
             </div>
 
