@@ -14,7 +14,7 @@ const ICON_MAP = { AlertTriangle, Home, Shield, Clock };
 
 function ConsequenceButtons({ profile, activeDate }) {
     const [transactions, setTransactions] = useState([]);
-    const [processingTypes, setProcessingTypes] = useState(new Set());
+    const [processingKeys, setProcessingKeys] = useState(new Set()); // Key: consequenceType-session
     const consequences = profile.consequences || DEFAULT_CONSEQUENCES;
 
     useEffect(() => {
@@ -24,86 +24,58 @@ function ConsequenceButtons({ profile, activeDate }) {
         return () => unsubscribe();
     }, [profile.id]);
 
-    const getConsequenceState = (type) => {
+    const isSessionApplied = (type, session) => {
         const entriesOnDate = transactions.filter(tx =>
             (tx.type === 'consequence' || tx.type === 'consequence_reversal') &&
             tx.consequenceType === type &&
+            tx.targetSession === session &&
             isSameDay(new Date(tx.timestamp), activeDate)
         );
 
-        // Calculate net time impact. If it's negative, the consequence is active.
-        const netImpact = entriesOnDate.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-
-        if (netImpact >= 0) return { isApplied: false, session: null };
-
-        // If active, find the last actual penalty to know WHICH session it's affecting
-        const lastPenalty = [...entriesOnDate].reverse().find(tx => tx.type === 'consequence');
-        return {
-            isApplied: true,
-            session: lastPenalty?.targetSession || null
-        };
+        // Sum amounts. If sum < 0, it's applied.
+        return entriesOnDate.reduce((sum, tx) => sum + Number(tx.amount || 0), 0) < 0;
     };
 
     const plannedDays = profile.weeklyPlan ? Object.entries(profile.weeklyPlan)
         .filter(([day, hours]) => hours > 0)
         .map(([day]) => day) : [];
 
-    const handleToggle = async (consequence, targetSession = null) => {
-        if (processingTypes.has(consequence.type)) return;
+    const handleToggle = async (consequence, session) => {
+        const key = `${consequence.type}-${session}`;
+        if (processingKeys.has(key)) return;
 
-        const { isApplied, session: currentSession } = getConsequenceState(consequence.type);
+        const isApplied = isSessionApplied(consequence.type, session);
 
-        setProcessingTypes(prev => new Set(prev).add(consequence.type));
+        setProcessingKeys(prev => new Set(prev).add(key));
 
         try {
             if (isApplied) {
-                // Si pulsas el check o la sesión que ya está activa -> QUITAR
-                if (targetSession === null || currentSession === targetSession) {
-                    await undoConsequence(
-                        profile.id,
-                        consequence.type,
-                        consequence.amount,
-                        consequence.label,
-                        activeDate,
-                        currentSession
-                    );
-                } else {
-                    // Si pulsas una sesión diferente -> MOVER (Suma en la vieja, resta en la nueva)
-                    await undoConsequence(
-                        profile.id,
-                        consequence.type,
-                        consequence.amount,
-                        consequence.label,
-                        activeDate,
-                        currentSession
-                    );
-                    await applyConsequence(
-                        profile.id,
-                        consequence.type,
-                        consequence.amount,
-                        consequence.label,
-                        activeDate,
-                        targetSession
-                    );
-                }
+                // UNDO for this specific day
+                await undoConsequence(
+                    profile.id,
+                    consequence.type,
+                    consequence.amount,
+                    consequence.label,
+                    activeDate,
+                    session
+                );
             } else {
-                // Si no está aplicada -> PONER (en la sesión elegida o la primera por defecto)
-                const finalTarget = targetSession || (plannedDays.length > 0 ? plannedDays[0] : null);
+                // APPLY for this specific day
                 await applyConsequence(
                     profile.id,
                     consequence.type,
                     consequence.amount,
                     consequence.label,
                     activeDate,
-                    finalTarget
+                    session
                 );
             }
         } catch (error) {
             console.error("Error toggling consequence:", error);
         } finally {
-            setProcessingTypes(prev => {
+            setProcessingKeys(prev => {
                 const next = new Set(prev);
-                next.delete(consequence.type);
+                next.delete(key);
                 return next;
             });
         }
@@ -118,8 +90,6 @@ function ConsequenceButtons({ profile, activeDate }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
             {consequences.map(consequence => {
                 const Icon = ICON_MAP[consequence.icon] || AlertTriangle;
-                const { isApplied, session: currentSession } = getConsequenceState(consequence.type);
-                const isProcessing = processingTypes.has(consequence.type);
 
                 return (
                     <div
@@ -127,102 +97,85 @@ function ConsequenceButtons({ profile, activeDate }) {
                         className="card"
                         style={{
                             padding: 'var(--spacing-md)',
-                            background: isApplied ? 'var(--color-danger-light)' : 'var(--bg-secondary)',
-                            border: '2px solid',
-                            borderColor: isApplied ? 'var(--color-danger)' : 'transparent',
-                            opacity: isProcessing ? 0.7 : 1,
+                            background: 'var(--bg-secondary)',
                             transition: 'all var(--transition-base)',
+                            border: '1px solid var(--border-color)'
                         }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-                            <div
-                                onClick={() => handleToggle(consequence, null)}
-                                style={{
-                                    cursor: isProcessing ? 'wait' : 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    paddingRight: 'var(--spacing-sm)'
-                                }}
-                            >
-                                {isProcessing ? (
-                                    <Loader2 size={24} className="animate-spin" color="var(--color-danger)" />
-                                ) : isApplied ? (
-                                    <CheckSquare size={24} color="var(--color-danger)" fill="white" />
-                                ) : (
-                                    <Square size={24} color="var(--text-muted)" />
-                                )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
+                            <div style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                padding: '10px',
+                                borderRadius: '12px',
+                                color: 'var(--color-danger)'
+                            }}>
+                                <Icon size={24} />
                             </div>
-
-                            <div
-                                style={{ flex: 1, cursor: isProcessing ? 'wait' : 'pointer' }}
-                                onClick={() => handleToggle(consequence, null)}
-                            >
-                                <div style={{
-                                    fontWeight: 700,
-                                    color: isApplied ? 'var(--color-danger)' : 'var(--text-primary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 'var(--spacing-sm)',
-                                    marginBottom: '2px'
-                                }}>
-                                    <Icon size={18} />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>
                                     {consequence.label}
                                 </div>
-                                <div style={{ fontSize: '12px', color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)', opacity: 0.8 }}>
-                                    {isApplied
-                                        ? `Activa en: ${DAY_LABELS[currentSession] || 'Sesión planificada'}`
-                                        : 'Haz clic para aplicar penalización'}
+                                <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                                    Penalización de {consequence.amount} min
                                 </div>
                             </div>
-
-                            <div style={{
-                                fontSize: 'var(--font-size-xl)',
-                                fontWeight: 800,
-                                color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)'
-                            }}>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--color-danger)' }}>
                                 -{consequence.amount}
                             </div>
                         </div>
 
-                        {/* Session Selection Pills */}
-                        {plannedDays.length > 0 && (
+                        {/* Session Checkboxes */}
+                        {plannedDays.length > 0 ? (
                             <div style={{
-                                marginTop: 'var(--spacing-md)',
-                                paddingTop: 'var(--spacing-sm)',
-                                borderTop: '1px solid',
-                                borderColor: isApplied ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                                display: 'flex',
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
                                 gap: 'var(--spacing-sm)',
-                                flexWrap: 'wrap',
-                                alignItems: 'center'
+                                paddingTop: 'var(--spacing-md)',
+                                borderTop: '1px solid var(--border-color)'
                             }}>
-                                <span style={{ fontSize: '11px', fontWeight: 600, color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)' }}>
-                                    {isApplied ? 'Cambiar sesión:' : 'Elegir sesión específica:'}
-                                </span>
                                 {plannedDays.map(day => {
-                                    const isActive = currentSession === day;
+                                    const key = `${consequence.type}-${day}`;
+                                    const isApplied = isSessionApplied(consequence.type, day);
+                                    const isProcessing = processingKeys.has(key);
+
                                     return (
                                         <button
                                             key={day}
                                             disabled={isProcessing}
-                                            onClick={(e) => { e.stopPropagation(); handleToggle(consequence, day); }}
+                                            onClick={() => handleToggle(consequence, day)}
                                             style={{
-                                                padding: '4px 12px',
-                                                borderRadius: '99px',
-                                                border: '1px solid',
-                                                borderColor: isActive ? 'var(--color-danger)' : 'var(--border-color)',
-                                                background: isActive ? 'var(--color-danger)' : 'transparent',
-                                                color: isActive ? 'white' : 'var(--text-primary)',
-                                                fontSize: '11px',
+                                                padding: '10px 8px',
+                                                borderRadius: 'var(--border-radius-sm)',
+                                                border: '2px solid',
+                                                borderColor: isApplied ? 'var(--color-danger)' : 'var(--border-color)',
+                                                background: isApplied ? 'var(--color-danger-light)' : 'transparent',
+                                                color: isApplied ? 'var(--color-danger)' : 'var(--text-primary)',
                                                 cursor: isProcessing ? 'wait' : 'pointer',
-                                                fontWeight: isActive ? 700 : 500,
-                                                transition: 'all var(--transition-fast)'
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                transition: 'all var(--transition-fast)',
+                                                opacity: isProcessing ? 0.6 : 1
                                             }}
                                         >
-                                            {DAY_LABELS[day]}
+                                            <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>
+                                                {DAY_LABELS[day]}
+                                            </span>
+                                            {isProcessing ? (
+                                                <Loader2 size={20} className="animate-spin" />
+                                            ) : isApplied ? (
+                                                <CheckSquare size={20} />
+                                            ) : (
+                                                <Square size={20} />
+                                            )}
                                         </button>
                                     );
                                 })}
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', opacity: 0.7 }}>
+                                Configura sesiones en el perfil para aplicar consecuencias.
                             </div>
                         )}
                     </div>
