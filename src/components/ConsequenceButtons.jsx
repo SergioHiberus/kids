@@ -22,7 +22,7 @@ const DEFAULT_CONSEQUENCES = [
         label: 'Confianza',
         amount: 30,
         icon: 'Shield',
-        color: '#dc2626'
+        color: 'var(--color-danger)'
     },
     {
         type: 'rules',

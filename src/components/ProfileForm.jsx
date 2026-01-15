@@ -40,7 +40,7 @@ function ProfileForm() {
     const getDefaultConsequences = () => [
         { type: 'disrespect', label: 'Falta de respeto', amount: 15, icon: 'AlertTriangle', color: 'var(--color-danger)' },
         { type: 'disorder', label: 'Desorden', amount: 5, icon: 'Home', color: 'var(--color-warning)' },
-        { type: 'trust', label: 'Confianza', amount: 30, icon: 'Shield', color: '#dc2626' },
+        { type: 'trust', label: 'Confianza', amount: 30, icon: 'Shield', color: 'var(--color-danger)' },
         { type: 'rules', label: 'Reglas Básicas', amount: 15, icon: 'Clock', color: 'var(--color-danger)' }
     ];
 
