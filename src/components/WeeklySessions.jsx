@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
 import { subscribeToTransactions } from '../utils/storage';
+import { isCurrentWeek } from '../utils/dateUtils';
 
 function WeeklySessions({ profile }) {
     const [transactions, setTransactions] = useState([]);
@@ -28,7 +29,11 @@ function WeeklySessions({ profile }) {
         // Sum penalties assigned to this session in the CURRENT week
         // Note: For simplicity, we filter transactions that have targetSession === dayKey
         const penalties = transactions
-            .filter(tx => tx.targetSession === dayKey && (tx.type === 'consequence' || tx.type === 'consequence_reversal'))
+            .filter(tx =>
+                tx.targetSession === dayKey &&
+                (tx.type === 'consequence' || tx.type === 'consequence_reversal') &&
+                isCurrentWeek(new Date(tx.timestamp))
+            )
             .reduce((sum, tx) => sum + tx.amount, 0);
 
         const available = Math.max(0, plannedMinutes + penalties);

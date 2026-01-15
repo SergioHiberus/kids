@@ -538,7 +538,9 @@ export async function addTransaction(transaction, skipProfileUpdate = false) {
     if (!skipProfileUpdate) {
         const profile = await getProfile(transaction.profileId);
         if (profile) {
-            const newBalance = (profile.balance || 0) + transaction.amount;
+            const amount = Number(transaction.amount);
+            const newBalance = Number(profile.balance || 0) + amount;
+            console.log(`Updating balance for ${profile.name}: ${profile.balance} -> ${newBalance} (amount: ${amount})`);
             await updateProfile(profile.id, { balance: newBalance });
         }
     }

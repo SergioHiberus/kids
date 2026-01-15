@@ -4,42 +4,13 @@ import { applyConsequence, undoConsequence, subscribeToTransactions } from '../u
 import { isSameDay } from '../utils/dateUtils';
 
 const DEFAULT_CONSEQUENCES = [
-    {
-        type: 'disrespect',
-        label: 'Falta de respeto',
-        amount: 15,
-        icon: 'AlertTriangle',
-        color: 'var(--color-danger)'
-    },
-    {
-        type: 'disorder',
-        label: 'Desorden',
-        amount: 5,
-        icon: 'Home',
-        color: 'var(--color-warning)'
-    },
-    {
-        type: 'trust',
-        label: 'Confianza',
-        amount: 30,
-        icon: 'Shield',
-        color: 'var(--color-danger)'
-    },
-    {
-        type: 'rules',
-        label: 'Reglas Básicas',
-        amount: 15,
-        icon: 'Clock',
-        color: 'var(--color-danger)'
-    }
+    { type: 'disrespect', label: 'Falta de respeto', amount: 15, icon: 'AlertTriangle', color: 'var(--color-danger)' },
+    { type: 'disorder', label: 'Desorden', amount: 5, icon: 'Home', color: 'var(--color-warning)' },
+    { type: 'trust', label: 'Confianza', amount: 30, icon: 'Shield', color: 'var(--color-danger)' },
+    { type: 'rules', label: 'Reglas Básicas', amount: 15, icon: 'Clock', color: 'var(--color-danger)' }
 ];
 
-const ICON_MAP = {
-    AlertTriangle,
-    Home,
-    Shield,
-    Clock
-};
+const ICON_MAP = { AlertTriangle, Home, Shield, Clock };
 
 function ConsequenceButtons({ profile, activeDate }) {
     const [transactions, setTransactions] = useState([]);
@@ -66,25 +37,63 @@ function ConsequenceButtons({ profile, activeDate }) {
 
         if (netBalance <= 0) return null;
 
-        // Find the last consequence record to see its targetSession
         const lastRecord = [...entriesOnDate].reverse().find(tx => tx.type === 'consequence');
         return lastRecord?.targetSession || 'general';
     };
 
-    const handleToggle = async (consequence, currentSession, targetSession = null) => {
-        const isApplied = Boolean(currentSession);
+    const handleToggle = async (consequence, targetSession = 'general') => {
         if (processingTypes.has(consequence.type)) return;
 
+        const currentSession = getAppliedSession(consequence.type);
+        const isApplied = Boolean(currentSession);
+
         setProcessingTypes(prev => new Set(prev).add(consequence.type));
+
         try {
             if (isApplied) {
-                // If clicking the SAME session, undo it.
-                // If clicking a DIFFERENT session while applied... we should probably undo old and apply new?
-                // For simplicity, if applied, any click on its sessions UNDOES it.
-                await undoConsequence(profile.id, consequence.type, consequence.amount, consequence.label, activeDate, currentSession === 'general' ? null : currentSession);
+                // Si hacemos clic en la sesión que ya está activa -> Desmarcamos (Perdonamos)
+                if (currentSession === targetSession) {
+                    await undoConsequence(
+                        profile.id,
+                        consequence.type,
+                        consequence.amount,
+                        consequence.label,
+                        activeDate,
+                        currentSession === 'general' ? null : currentSession
+                    );
+                } else {
+                    // Si hacemos clic en una sesión DIFERENTE -> Cambiamos sesión (Undo antigua + Apply nueva)
+                    await undoConsequence(
+                        profile.id,
+                        consequence.type,
+                        consequence.amount,
+                        consequence.label,
+                        activeDate,
+                        currentSession === 'general' ? null : currentSession
+                    );
+                    await applyConsequence(
+                        profile.id,
+                        consequence.type,
+                        consequence.amount,
+                        consequence.label,
+                        activeDate,
+                        targetSession === 'general' ? null : targetSession
+                    );
+                }
             } else {
-                await applyConsequence(profile.id, consequence.type, consequence.amount, consequence.label, activeDate, targetSession === 'general' ? null : targetSession);
+                // Si no está aplicada -> Aplicamos a la sesión elegida
+                await applyConsequence(
+                    profile.id,
+                    consequence.type,
+                    consequence.amount,
+                    consequence.label,
+                    activeDate,
+                    targetSession === 'general' ? null : targetSession
+                );
             }
+        } catch (error) {
+            console.error("Error toggling consequence:", error);
+            alert("Error al procesar la consecuencia");
         } finally {
             setProcessingTypes(prev => {
                 const next = new Set(prev);
@@ -104,7 +113,7 @@ function ConsequenceButtons({ profile, activeDate }) {
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
             {consequences.map(consequence => {
                 const Icon = ICON_MAP[consequence.icon] || AlertTriangle;
                 const currentSession = getAppliedSession(consequence.type);
@@ -114,76 +123,96 @@ function ConsequenceButtons({ profile, activeDate }) {
                 return (
                     <div
                         key={consequence.type}
+                        className="card"
                         style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 'var(--spacing-xs)',
-                            background: isApplied ? 'var(--color-danger-light)' : 'var(--bg-secondary)',
-                            borderRadius: 'var(--border-radius-sm)',
                             padding: 'var(--spacing-md)',
+                            background: isApplied ? 'var(--color-danger-light)' : 'var(--bg-secondary)',
                             border: '2px solid',
                             borderColor: isApplied ? 'var(--color-danger)' : 'transparent',
-                            opacity: isProcessing ? 0.6 : 1,
-                            transition: 'all var(--transition-fast)',
+                            opacity: isProcessing ? 0.7 : 1,
+                            transition: 'all var(--transition-base)',
+                            position: 'relative',
+                            overflow: 'hidden'
                         }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', marginBottom: plannedDays.length > 0 ? 'var(--spacing-xs)' : 0 }}>
-                            {isProcessing ? (
-                                <Loader2 size={24} className="animate-spin" color="var(--color-danger)" />
-                            ) : isApplied ? (
-                                <CheckSquare size={24} color="var(--color-danger)" fill="white" onClick={() => handleToggle(consequence, currentSession)} style={{ cursor: 'pointer' }} />
-                            ) : (
-                                <Square size={24} color="var(--text-muted)" onClick={() => handleToggle(consequence, null, 'general')} style={{ cursor: 'pointer' }} />
-                            )}
-                            <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+                            <div
+                                onClick={() => handleToggle(consequence, isApplied ? currentSession : 'general')}
+                                style={{ cursor: isProcessing ? 'wait' : 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                                {isProcessing ? (
+                                    <Loader2 size={24} className="animate-spin" color="var(--color-danger)" />
+                                ) : isApplied ? (
+                                    <CheckSquare size={24} color="var(--color-danger)" fill="white" />
+                                ) : (
+                                    <Square size={24} color="var(--text-muted)" />
+                                )}
+                            </div>
+
+                            <div
+                                style={{ flex: 1, cursor: 'default' }}
+                                onClick={() => !isApplied && handleToggle(consequence, 'general')}
+                            >
                                 <div style={{
-                                    fontWeight: 600,
+                                    fontWeight: 700,
                                     color: isApplied ? 'var(--color-danger)' : 'var(--text-primary)',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: 'var(--spacing-sm)'
+                                    gap: 'var(--spacing-sm)',
+                                    marginBottom: '2px'
                                 }}>
                                     <Icon size={18} />
                                     {consequence.label}
-                                    {isApplied && currentSession !== 'general' && (
-                                        <span className="badge badge-danger" style={{ fontSize: '10px' }}>
-                                            EN: {DAY_LABELS[currentSession]}
-                                        </span>
-                                    )}
+                                </div>
+                                <div style={{ fontSize: '12px', color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)', opacity: 0.8 }}>
+                                    {isApplied
+                                        ? `Penalización activa: ${currentSession === 'general' ? 'General' : DAY_LABELS[currentSession]}`
+                                        : 'Haz clic para aplicar penalización general'}
                                 </div>
                             </div>
+
                             <div style={{
-                                fontSize: 'var(--font-size-lg)',
-                                fontWeight: 700,
+                                fontSize: 'var(--font-size-xl)',
+                                fontWeight: 800,
                                 color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)'
                             }}>
-                                -{consequence.amount} Min
+                                -{consequence.amount}
                             </div>
                         </div>
 
-                        {/* Session selection pills if plan exists and not applied or applied to specific day */}
+                        {/* Session Selection Pills */}
                         {plannedDays.length > 0 && (
-                            <div style={{ display: 'flex', gap: '4px', marginLeft: '36px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '4px' }}>
-                                    Afectar a:
+                            <div style={{
+                                marginTop: 'var(--spacing-md)',
+                                paddingTop: 'var(--spacing-sm)',
+                                borderTop: '1px solid',
+                                borderColor: isApplied ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                display: 'flex',
+                                gap: 'var(--spacing-sm)',
+                                flexWrap: 'wrap',
+                                alignItems: 'center'
+                            }}>
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: isApplied ? 'var(--color-danger)' : 'var(--text-muted)' }}>
+                                    {isApplied ? 'Cambiar sesión:' : 'O elegir sesión:'}
                                 </span>
                                 {['general', ...plannedDays].map(day => {
-                                    const active = currentSession === day;
+                                    const isActive = currentSession === day;
                                     return (
                                         <button
                                             key={day}
                                             disabled={isProcessing}
-                                            onClick={(e) => { e.stopPropagation(); handleToggle(consequence, currentSession, day); }}
+                                            onClick={(e) => { e.stopPropagation(); handleToggle(consequence, day); }}
                                             style={{
-                                                padding: '2px 8px',
+                                                padding: '4px 12px',
                                                 borderRadius: '99px',
                                                 border: '1px solid',
-                                                borderColor: active ? 'var(--color-danger)' : 'var(--border-color)',
-                                                background: active ? 'var(--color-danger)' : 'transparent',
-                                                color: active ? 'white' : 'var(--text-muted)',
-                                                fontSize: '10px',
+                                                borderColor: isActive ? 'var(--color-danger)' : 'var(--border-color)',
+                                                background: isActive ? 'var(--color-danger)' : 'transparent',
+                                                color: isActive ? 'white' : 'var(--text-primary)',
+                                                fontSize: '11px',
                                                 cursor: isProcessing ? 'wait' : 'pointer',
-                                                fontWeight: active ? 700 : 400
+                                                fontWeight: isActive ? 700 : 500,
+                                                transition: 'all var(--transition-fast)'
                                             }}
                                         >
                                             {day === 'general' ? 'Gral' : DAY_LABELS[day]}
