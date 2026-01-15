@@ -6,7 +6,6 @@ const DEFAULT_CONSEQUENCES = [
     {
         type: 'disrespect',
         label: 'Falta de respeto',
-        description: 'Gritos/Groserías',
         amount: 15,
         icon: 'AlertTriangle',
         color: 'var(--color-danger)'
@@ -14,7 +13,6 @@ const DEFAULT_CONSEQUENCES = [
     {
         type: 'disorder',
         label: 'Desorden',
-        description: 'Zonas comunes',
         amount: 5,
         icon: 'Home',
         color: 'var(--color-warning)'
@@ -22,7 +20,6 @@ const DEFAULT_CONSEQUENCES = [
     {
         type: 'trust',
         label: 'Confianza',
-        description: 'Mentiras',
         amount: 30,
         icon: 'Shield',
         color: '#dc2626'
@@ -30,7 +27,6 @@ const DEFAULT_CONSEQUENCES = [
     {
         type: 'rules',
         label: 'Reglas Básicas',
-        description: 'Saltarse horarios',
         amount: 15,
         icon: 'Clock',
         color: 'var(--color-danger)'
@@ -48,7 +44,7 @@ function ConsequenceButtons({ profile, activeDate, onUpdate }) {
     const consequences = profile.consequences || DEFAULT_CONSEQUENCES;
     const handleConsequence = async (consequence) => {
         if (window.confirm(`¿Aplicar consecuencia: ${consequence.label} (-${consequence.amount} Min)?`)) {
-            await applyConsequence(profile.id, consequence.type, consequence.amount, consequence.description, activeDate);
+            await applyConsequence(profile.id, consequence.type, consequence.amount, consequence.label, activeDate);
         }
     };
 
@@ -71,11 +67,8 @@ function ConsequenceButtons({ profile, activeDate, onUpdate }) {
                         }}
                     >
                         <Icon size={20} />
-                        <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600 }}>{consequence.label}</div>
-                            <div style={{ fontSize: 'var(--font-size-xs)', opacity: 0.9 }}>
-                                {consequence.description}
-                            </div>
+                        <div style={{ flex: 1, fontWeight: 600 }}>
+                            {consequence.label}
                         </div>
                         <div style={{
                             fontSize: 'var(--font-size-lg)',

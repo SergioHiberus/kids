@@ -37,10 +37,10 @@ function ProfileForm() {
     }, [id, isEdit]);
 
     const getDefaultConsequences = () => [
-        { type: 'disrespect', label: 'Falta de respeto', description: 'Gritos/Groserías', amount: 15, icon: 'AlertTriangle', color: 'var(--color-danger)' },
-        { type: 'disorder', label: 'Desorden', description: 'Zonas comunes', amount: 5, icon: 'Home', color: 'var(--color-warning)' },
-        { type: 'trust', label: 'Confianza', description: 'Mentiras', amount: 30, icon: 'Shield', color: '#dc2626' },
-        { type: 'rules', label: 'Reglas Básicas', description: 'Saltarse horarios', amount: 15, icon: 'Clock', color: 'var(--color-danger)' }
+        { type: 'disrespect', label: 'Falta de respeto', amount: 15, icon: 'AlertTriangle', color: 'var(--color-danger)' },
+        { type: 'disorder', label: 'Desorden', amount: 5, icon: 'Home', color: 'var(--color-warning)' },
+        { type: 'trust', label: 'Confianza', amount: 30, icon: 'Shield', color: '#dc2626' },
+        { type: 'rules', label: 'Reglas Básicas', amount: 15, icon: 'Clock', color: 'var(--color-danger)' }
     ];
 
     useEffect(() => {
@@ -115,7 +115,6 @@ function ProfileForm() {
             consequences: [...formData.consequences, {
                 type: `custom_${Date.now()}`,
                 label: '',
-                description: '',
                 amount: 10,
                 icon: 'AlertTriangle',
                 color: 'var(--color-danger)'
@@ -226,65 +225,45 @@ function ProfileForm() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                             <label className="label" style={{ marginBottom: 0 }}>Consecuencias</label>
                             <button type="button" onClick={addConsequence} className="btn btn-sm btn-primary">
-                                <Plus size={16} /> Añadir Consecuencia
+                                + Añadir Consecuencia
                             </button>
                         </div>
 
                         {formData.consequences.map((consequence, index) => (
                             <div key={index} style={{
-                                padding: 'var(--spacing-md)',
-                                background: 'var(--bg-secondary)',
-                                borderRadius: 'var(--border-radius-sm)',
+                                display: 'grid',
+                                gridTemplateColumns: '1fr auto auto',
+                                gap: 'var(--spacing-sm)',
                                 marginBottom: 'var(--spacing-sm)'
                             }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
-                                    <input
-                                        type="text"
-                                        className="input"
-                                        value={consequence.label}
-                                        onChange={(e) => updateConsequence(index, 'label', e.target.value)}
-                                        placeholder="Nombre (ej: Falta de respeto)"
-                                    />
-                                    <input
-                                        type="text"
-                                        className="input"
-                                        value={consequence.description}
-                                        onChange={(e) => updateConsequence(index, 'description', e.target.value)}
-                                        placeholder="Descripción (ej: Gritos/Groserías)"
-                                    />
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
-                                    <input
-                                        type="number"
-                                        className="input"
-                                        value={consequence.amount}
-                                        onChange={(e) => updateConsequence(index, 'amount', parseInt(e.target.value) || 0)}
-                                        placeholder="Minutos"
-                                        min="1"
-                                    />
-                                    <select
-                                        className="input"
-                                        value={consequence.icon}
-                                        onChange={(e) => updateConsequence(index, 'icon', e.target.value)}
-                                    >
-                                        <option value="AlertTriangle">⚠️ Alerta</option>
-                                        <option value="Home">🏠 Casa</option>
-                                        <option value="Shield">🛡️ Escudo</option>
-                                        <option value="Clock">⏰ Reloj</option>
-                                    </select>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeConsequence(index)}
-                                        className="btn btn-danger btn-sm"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    value={consequence.label}
+                                    onChange={(e) => updateConsequence(index, 'label', e.target.value)}
+                                    placeholder="Nombre de la consecuencia"
+                                />
+                                <input
+                                    type="number"
+                                    className="input"
+                                    value={consequence.amount}
+                                    onChange={(e) => updateConsequence(index, 'amount', parseInt(e.target.value) || 0)}
+                                    placeholder="Minutos"
+                                    min="1"
+                                    style={{ width: '100px' }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => removeConsequence(index)}
+                                    className="btn btn-danger btn-sm"
+                                >
+                                    ✕
+                                </button>
                             </div>
                         ))}
 
                         <small style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', display: 'block', marginTop: 'var(--spacing-sm)' }}>
-                            Puedes editar los minutos de penalización y añadir consecuencias personalizadas
+                            Penalizaciones en minutos que se restarán del saldo
                         </small>
                     </div>
 
