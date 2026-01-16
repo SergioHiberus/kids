@@ -9,7 +9,8 @@
         "email"
       ],
       "serverClientId": "483987459546-gl8vlvq35gi2q4clhtm3n83os1t71rvh.apps.googleusercontent.com",
-      "forceCodeForRefreshToken": true
+      "androidClientId": "483987459546-5s64grguqrunsd7uekqjpiaim3ne6i6i.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": false
     }
   }
 }
