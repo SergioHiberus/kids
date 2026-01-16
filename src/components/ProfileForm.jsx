@@ -10,12 +10,12 @@ function ProfileForm() {
 
     const [formData, setFormData] = useState({
         name: '',
-        weeklyGoalHours: 0,
+        weeklyGoalHours: '',
         customTasks: [],
         consequences: [],
         weeklyPlan: {
-            friday: 0, saturday: 0, sunday: 0, monday: 0,
-            tuesday: 0, wednesday: 0, thursday: 0
+            friday: '', saturday: '', sunday: '', monday: '',
+            tuesday: '', wednesday: '', thursday: ''
         }
     });
     const [loading, setLoading] = useState(isEdit);
@@ -26,7 +26,7 @@ function ProfileForm() {
                 if (profile) {
                     setFormData({
                         name: profile.name || '',
-                        weeklyGoalHours: profile.weeklyGoalHours || 0,
+                        weeklyGoalHours: profile.weeklyGoalHours || '',
                         customTasks: profile.tasks?.filter(t => t.id !== 'breathing').map(t => ({
                             id: t.id,
                             name: t.name,
@@ -38,8 +38,8 @@ function ProfileForm() {
                             color: c.color === '#dc2626' ? 'var(--color-danger)' : c.color
                         })),
                         weeklyPlan: profile.weeklyPlan || {
-                            friday: 0, saturday: 0, sunday: 0, monday: 0,
-                            tuesday: 0, wednesday: 0, thursday: 0
+                            friday: '', saturday: '', sunday: '', monday: '',
+                            tuesday: '', wednesday: '', thursday: ''
                         }
                     });
                 }
@@ -93,15 +93,32 @@ function ProfileForm() {
                 }))
             ];
 
+            const sanitizedData = {
+                ...formData,
+                weeklyGoalHours: parseFloat(formData.weeklyGoalHours) || 0,
+                weeklyPlan: Object.entries(formData.weeklyPlan).reduce((acc, [day, val]) => ({
+                    ...acc,
+                    [day]: parseFloat(val) || 0
+                }), {})
+            };
+
             await updateProfile(id, {
-                name: formData.name,
-                weeklyGoalHours: formData.weeklyGoalHours,
+                name: sanitizedData.name,
+                weeklyGoalHours: sanitizedData.weeklyGoalHours,
                 tasks: updatedTasks,
-                consequences: formData.consequences,
-                weeklyPlan: formData.weeklyPlan
+                consequences: sensitizedData.consequences,
+                weeklyPlan: sanitizedData.weeklyPlan
             });
         } else {
-            await createProfile(formData);
+            const sanitizedData = {
+                ...formData,
+                weeklyGoalHours: parseFloat(formData.weeklyGoalHours) || 0,
+                weeklyPlan: Object.entries(formData.weeklyPlan).reduce((acc, [day, val]) => ({
+                    ...acc,
+                    [day]: parseFloat(val) || 0
+                }), {})
+            };
+            await createProfile(sanitizedData);
         }
 
         navigate('/');
