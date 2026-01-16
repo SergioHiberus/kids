@@ -68,7 +68,11 @@ function App() {
     // Initialize Google Auth Nativo if in Capacitor
     if (window.hasOwnProperty('Capacitor')) {
       import('@codetrix-studio/capacitor-google-auth').then(mod => {
-        mod.GoogleAuth.initialize();
+        mod.GoogleAuth.initialize({
+          clientId: '483987459546-gl8vlvq35gi2q4clhtm3n83os1t71rvh.apps.googleusercontent.com',
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: true,
+        });
       });
     }
 
