@@ -24,29 +24,42 @@ export function AuthProvider({ children }) {
             setLoading(false);
         });
 
+        // Handle redirect result for mobile/web redirects
+        const { getRedirectResult } = import('firebase/auth').then(mod => {
+            mod.getRedirectResult(auth)
+                .then((result) => {
+                    if (result?.user) {
+                        console.log("Redirect login success:", result.user);
+                    }
+                })
+                .catch((error) => {
+                    if (error.code !== 'auth/no-current-user') {
+                        console.error("Redirect login error:", error);
+                        // Only alert if it's a real error, not just "no user yet"
+                        if (error.code !== 'auth/network-request-failed') {
+                            alert("Error al volver del login: " + error.message);
+                        }
+                    }
+                });
+        });
+
         return unsubscribe;
     }, []);
 
     const loginWithGoogle = async () => {
         try {
-            // Capacitor/Android doesn't support popups
             const isCapacitor = window.hasOwnProperty('Capacitor');
 
             if (isCapacitor) {
-                alert("Detectado entorno móvil. Iniciando login por redirección...");
-                // Note: Redirect might also need extra config in Firebase (Authorized Domains)
-                // and Capacitor (Intent filters).
-                await signInWithPopup(auth, googleProvider);
+                alert("Redirigiendo a Google para inicio de sesión seguro...");
+                const { signInWithRedirect } = await import('firebase/auth');
+                await signInWithRedirect(auth, googleProvider);
             } else {
                 await signInWithPopup(auth, googleProvider);
             }
         } catch (error) {
             console.error("Login failed:", error);
-            let errorMessage = error.message;
-            if (error.code === 'auth/operation-not-supported-in-this-environment') {
-                errorMessage = "El login social no es compatible con el navegador interno del móvil. Por favor, asegúrate de tener configurado Firebase para Android con tus claves SHA-1.";
-            }
-            alert("Error de Login: " + errorMessage);
+            alert("Error de Login: " + error.message);
             throw error;
         }
     };
