@@ -56,10 +56,25 @@ function App() {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    initializeStorage().then(() => setInitialized(true));
+    console.log("App effect: initializing storage");
+    initializeStorage()
+      .then(() => {
+        console.log("Storage initialized successfully");
+        setInitialized(true);
+      })
+      .catch(err => {
+        console.error("Initialization error:", err);
+        alert("Critial initialization error: " + err.message);
+      });
   }, []);
 
-  if (!initialized) return <div className="container">Cargando...</div>;
+  if (!initialized) {
+    return (
+      <div style={{ padding: '20px', color: 'white', background: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div>Cargando sistema...</div>
+      </div>
+    );
+  }
 
   return (
     <AuthProvider>
